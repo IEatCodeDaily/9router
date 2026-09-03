@@ -27,6 +27,17 @@ describe("combo custom-model context overrides", () => {
     expect(getCaps("acme/model-a").contextWindow).toBe(654321);
   });
 
+  it("normalizes registry secondary aliases like the request router", () => {
+    const getCaps = createComboCapsResolver([{
+      providerAlias: "kimi",
+      id: "kimi-k2.5",
+      type: "llm",
+      caps: { contextWindow: 131072 },
+    }]);
+
+    expect(getCaps("kmc/kimi-k2.5").contextWindow).toBe(131072);
+  });
+
   it("ignores media metadata with the same provider and model ID", () => {
     const base = createComboCapsResolver([])("cx/gpt-5.6-sol");
     const withImageMetadata = createComboCapsResolver([{
