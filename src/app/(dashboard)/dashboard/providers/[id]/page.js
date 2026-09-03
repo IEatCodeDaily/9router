@@ -575,6 +575,7 @@ export default function ProviderDetailPage() {
     const saved = await handleAddCustomModel(contextEditor.modelId, "llm", providerStorageAlias, { contextWindow });
     setContextSaving(false);
     if (saved) setContextEditor(null);
+    else setContextEditor((current) => ({ ...current, error: "Could not save the override. Try again." }));
   };
 
   const resetContextOverride = async () => {
@@ -582,6 +583,7 @@ export default function ProviderDetailPage() {
     const saved = await handleAddCustomModel(contextEditor.modelId, "llm", providerStorageAlias, { contextWindow: null });
     setContextSaving(false);
     if (saved) setContextEditor(null);
+    else setContextEditor((current) => ({ ...current, error: "Could not reset the override. Try again." }));
   };
 
   const handleDeleteCustomModel = async (modelId, type = "llm", providerAliasOverride = providerStorageAlias) => {
