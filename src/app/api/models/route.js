@@ -11,6 +11,10 @@ export async function GET() {
   try {
     const modelAliases = await getModelAliases();
     const disabled = await getDisabledModels();
+    const allCustomModels = await getCustomModels();
+    const customByFullModel = new Map(allCustomModels
+      .filter((model) => (model.kind || model.type || "llm") === "llm")
+      .map((model) => [`${model.providerAlias}/${model.id}`, model]));
 
     const models = AI_MODELS
       .filter((m) => {
@@ -22,7 +26,10 @@ export async function GET() {
         const fullModel = `${m.provider}/${m.model}`;
         const providerAlias = getProviderAlias(m.provider) || m.provider;
         const routedModel = `${providerAlias}/${m.model}`;
-        const c = getCapabilitiesForModel(resolveProviderId(m.provider), m.model);
+        const c = {
+          ...getCapabilitiesForModel(resolveProviderId(m.provider), m.model),
+          ...(customByFullModel.get(`${providerAlias}/${m.model}`)?.caps || customByFullModel.get(fullModel)?.caps || {}),
+        };
         return {
           ...m,
           fullModel,
@@ -47,7 +54,7 @@ export async function GET() {
     const prefixes = new Map(connections
       .filter((connection) => connection.providerSpecificData?.prefix)
       .map((connection) => [connection.provider, connection.providerSpecificData.prefix]));
-    const customModels = (await getCustomModels()).filter((m) => {
+    const customModels = allCustomModels.filter((m) => {
       if (!m?.id || (m.kind || m.type || "llm") !== "llm") return false;
       return !seenFull.has(`${m.providerAlias}/${m.id}`);
     });

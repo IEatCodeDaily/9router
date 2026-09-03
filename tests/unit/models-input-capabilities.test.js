@@ -56,4 +56,30 @@ describe("GET /api/models input capabilities", () => {
     const codex = (await response.json()).models.find((model) => model.fullModel === "cx/gpt-5.6-sol");
     expect(codex.caps.contextWindow).toBe(372000);
   });
+
+  it("applies a stored context override to a built-in provider model", async () => {
+    mocks.getCustomModels.mockResolvedValueOnce([{
+      providerAlias: "gemini",
+      id: "gemini-2.5-pro",
+      type: "llm",
+      caps: { contextWindow: 262144 },
+    }]);
+
+    const response = await GET();
+    const model = (await response.json()).models.find((entry) => entry.fullModel === "gemini/gemini-2.5-pro");
+    expect(model.caps.contextWindow).toBe(262144);
+  });
+
+  it("does not apply non-LLM metadata to a provider model with the same ID", async () => {
+    mocks.getCustomModels.mockResolvedValueOnce([{
+      providerAlias: "gemini",
+      id: "gemini-2.5-pro",
+      type: "image",
+      caps: { contextWindow: 1 },
+    }]);
+
+    const response = await GET();
+    const model = (await response.json()).models.find((entry) => entry.fullModel === "gemini/gemini-2.5-pro");
+    expect(model.caps.contextWindow).toBe(1048576);
+  });
 });

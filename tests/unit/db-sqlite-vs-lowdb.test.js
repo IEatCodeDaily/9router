@@ -181,6 +181,15 @@ describe("DB SQLite layer — public API parity", () => {
     expect(after.find((m) => m.id === "m1")).toBeUndefined();
   });
 
+  it("customModels: merges and clears one capability override without losing siblings", async () => {
+    await sqliteDb.addCustomModel({ providerAlias: "p1", id: "m2", caps: { vision: true } });
+    await sqliteDb.addCustomModel({ providerAlias: "p1", id: "m2", caps: { contextWindow: 262144 } });
+    expect((await sqliteDb.getCustomModels()).find((m) => m.id === "m2").caps).toEqual({ vision: true, contextWindow: 262144 });
+
+    await sqliteDb.addCustomModel({ providerAlias: "p1", id: "m2", caps: { contextWindow: null } });
+    expect((await sqliteDb.getCustomModels()).find((m) => m.id === "m2").caps).toEqual({ vision: true });
+  });
+
   it("mitmAlias: get/set per tool", async () => {
     await sqliteDb.setMitmAliasAll("cursor", { "gpt-5": "claude-3" });
     const a = await sqliteDb.getMitmAlias("cursor");
