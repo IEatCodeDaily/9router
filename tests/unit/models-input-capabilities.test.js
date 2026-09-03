@@ -70,6 +70,19 @@ describe("GET /api/models input capabilities", () => {
     expect(model.caps.contextWindow).toBe(262144);
   });
 
+  it("applies a canonical-ID override to an alias-routed provider model", async () => {
+    mocks.getCustomModels.mockResolvedValueOnce([{
+      providerAlias: "codex",
+      id: "gpt-5.6-sol",
+      type: "llm",
+      caps: { contextWindow: 131072 },
+    }]);
+
+    const response = await GET();
+    const model = (await response.json()).models.find((entry) => entry.fullModel === "cx/gpt-5.6-sol");
+    expect(model.caps.contextWindow).toBe(131072);
+  });
+
   it("does not apply non-LLM metadata to a provider model with the same ID", async () => {
     mocks.getCustomModels.mockResolvedValueOnce([{
       providerAlias: "gemini",

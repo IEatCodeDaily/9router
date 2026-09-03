@@ -12,9 +12,14 @@ export async function GET() {
     const modelAliases = await getModelAliases();
     const disabled = await getDisabledModels();
     const allCustomModels = await getCustomModels();
-    const customByFullModel = new Map(allCustomModels
-      .filter((model) => (model.kind || model.type || "llm") === "llm")
-      .map((model) => [`${model.providerAlias}/${model.id}`, model]));
+    const customByFullModel = new Map();
+    for (const model of allCustomModels) {
+      if ((model.kind || model.type || "llm") !== "llm") continue;
+      const fullModel = `${model.providerAlias}/${model.id}`;
+      customByFullModel.set(fullModel, model);
+      const normalizedModel = `${resolveProviderId(model.providerAlias)}/${model.id}`;
+      if (!customByFullModel.has(normalizedModel)) customByFullModel.set(normalizedModel, model);
+    }
 
     const models = AI_MODELS
       .filter((m) => {
@@ -28,7 +33,10 @@ export async function GET() {
         const routedModel = `${providerAlias}/${m.model}`;
         const c = {
           ...getCapabilitiesForModel(resolveProviderId(m.provider), m.model),
-          ...(customByFullModel.get(`${providerAlias}/${m.model}`)?.caps || customByFullModel.get(fullModel)?.caps || {}),
+          ...(customByFullModel.get(`${providerAlias}/${m.model}`)?.caps
+            || customByFullModel.get(fullModel)?.caps
+            || customByFullModel.get(`${resolveProviderId(m.provider)}/${m.model}`)?.caps
+            || {}),
         };
         return {
           ...m,

@@ -13,7 +13,7 @@ import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { translate } from "@/i18n/runtime";
 import { fetchSuggestedModels } from "@/shared/utils/providerModelsFetcher";
-import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
+import { findProviderModelMetadata, getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
 import ModelRow from "./ModelRow";
 import PassthroughModelsSection from "./PassthroughModelsSection";
 import CompatibleModelsSection from "./CompatibleModelsSection";
@@ -551,13 +551,10 @@ export default function ProviderDetailPage() {
   };
 
   const openContextEditor = (modelId, caps) => {
-    const stored = customModels.find((model) =>
-      model.providerAlias === providerStorageAlias
-      && model.id === modelId
-      && (model.kind || model.type || "llm") === "llm"
-    );
+    const stored = findProviderModelMetadata(customModels, providerStorageAlias, modelId);
     setContextEditor({
       modelId,
+      providerAlias: stored?.providerAlias || providerStorageAlias,
       value: String(caps?.contextWindow || ""),
       hasOverride: Object.prototype.hasOwnProperty.call(stored?.caps || {}, "contextWindow"),
       error: "",
@@ -572,7 +569,7 @@ export default function ProviderDetailPage() {
       return;
     }
     setContextSaving(true);
-    const saved = await handleAddCustomModel(contextEditor.modelId, "llm", providerStorageAlias, { contextWindow });
+    const saved = await handleAddCustomModel(contextEditor.modelId, "llm", contextEditor.providerAlias, { contextWindow });
     setContextSaving(false);
     if (saved) setContextEditor(null);
     else setContextEditor((current) => ({ ...current, error: "Could not save the override. Try again." }));
@@ -580,7 +577,7 @@ export default function ProviderDetailPage() {
 
   const resetContextOverride = async () => {
     setContextSaving(true);
-    const saved = await handleAddCustomModel(contextEditor.modelId, "llm", providerStorageAlias, { contextWindow: null });
+    const saved = await handleAddCustomModel(contextEditor.modelId, "llm", contextEditor.providerAlias, { contextWindow: null });
     setContextSaving(false);
     if (saved) setContextEditor(null);
     else setContextEditor((current) => ({ ...current, error: "Could not reset the override. Try again." }));
