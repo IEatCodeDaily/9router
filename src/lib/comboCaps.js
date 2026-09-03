@@ -18,10 +18,13 @@ function resolveModelCaps(key) {
 }
 
 export function createComboCapsResolver(customModels = [], providerConnections = []) {
-  const overrides = new Map(customModels.map((model) => [
-    `${model.providerAlias}/${model.id}`,
-    model.caps || {},
-  ]));
+  const overrides = new Map();
+  for (const model of customModels) {
+    if ((model.kind || model.type || "llm") !== "llm") continue;
+    for (const provider of new Set([model.providerAlias, resolveProviderId(model.providerAlias)])) {
+      overrides.set(`${provider}/${model.id}`, model.caps || {});
+    }
+  }
   const providersByPrefix = new Map(providerConnections
     .filter((connection) => connection.providerSpecificData?.prefix)
     .map((connection) => [connection.providerSpecificData.prefix, connection.provider]));
@@ -32,7 +35,7 @@ export function createComboCapsResolver(customModels = [], providerConnections =
     const model = slash === -1 ? key : key.slice(slash + 1);
     return {
       ...getCapabilitiesForModel(provider ? resolveProviderId(provider) : null, model),
-      ...(overrides.get(`${provider}/${model}`) || {}),
+      ...(overrides.get(`${routedProvider}/${model}`) || overrides.get(`${resolveProviderId(provider)}/${model}`) || {}),
     };
   };
 }
