@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getComboById, updateCombo, deleteCombo, getComboByName, getCustomModels, getProviderConnections } from "@/lib/localDb";
+import { getComboById, updateCombo, deleteCombo, getComboByName, getCustomModels, getProviderConnections, getModelAliases } from "@/lib/localDb";
 import { resetComboRotation } from "open-sse/services/combo.js";
 import { createComboCapsResolver, validateComboCaps } from "@/lib/comboCaps";
 
@@ -34,11 +34,11 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: "Combo not found" }, { status: 404 });
     }
 
-    const [customModels, connections] = await Promise.all([getCustomModels(), getProviderConnections()]);
+    const [customModels, connections, modelAliases] = await Promise.all([getCustomModels(), getProviderConnections(), getModelAliases()]);
     const capsError = validateComboCaps(
       body.caps === undefined ? prev.caps : body.caps,
       body.models === undefined ? prev.models : body.models,
-      createComboCapsResolver(customModels, connections),
+      createComboCapsResolver(customModels, connections, modelAliases),
     );
     if (capsError) {
       return NextResponse.json({ error: capsError }, { status: 400 });

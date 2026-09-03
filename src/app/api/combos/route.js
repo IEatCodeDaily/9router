@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCombos, createCombo, getComboByName, getCustomModels, getProviderConnections } from "@/lib/localDb";
+import { getCombos, createCombo, getComboByName, getCustomModels, getProviderConnections, getModelAliases } from "@/lib/localDb";
 import { createComboCapsResolver, validateComboCaps } from "@/lib/comboCaps";
 
 export const dynamic = "force-dynamic";
@@ -34,8 +34,8 @@ export async function POST(request) {
       return NextResponse.json({ error: "Name can only contain letters, numbers, -, _ and ." }, { status: 400 });
     }
 
-    const [customModels, connections] = await Promise.all([getCustomModels(), getProviderConnections()]);
-    const capsError = validateComboCaps(caps, effectiveModels, createComboCapsResolver(customModels, connections));
+    const [customModels, connections, modelAliases] = await Promise.all([getCustomModels(), getProviderConnections(), getModelAliases()]);
+    const capsError = validateComboCaps(caps, effectiveModels, createComboCapsResolver(customModels, connections, modelAliases));
     if (capsError) {
       return NextResponse.json({ error: capsError }, { status: 400 });
     }

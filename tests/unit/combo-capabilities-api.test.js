@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getProviderConnections: vi.fn(),
   getComboByName: vi.fn(),
   getCombos: vi.fn(),
+  getModelAliases: vi.fn(),
 }));
 
 vi.mock("@/lib/localDb", () => mocks);
@@ -18,6 +19,7 @@ describe("POST /api/combos capability metadata", () => {
     mocks.getComboByName.mockResolvedValue(null);
     mocks.getCustomModels.mockResolvedValue([]);
     mocks.getProviderConnections.mockResolvedValue([]);
+    mocks.getModelAliases.mockResolvedValue({});
     mocks.createCombo.mockImplementation(async (value) => ({ id: "combo-id", ...value }));
   });
 

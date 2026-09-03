@@ -1,4 +1,5 @@
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
+import { resolveModelAliasFromMap } from "open-sse/services/model.js";
 import { isReservedProviderPrefix, resolveProviderId } from "@/shared/constants/providers";
 
 export const COMBO_INPUT_CAPABILITIES = ["vision", "pdf", "audioInput", "videoInput"];
@@ -17,7 +18,7 @@ function resolveModelCaps(key) {
   return getCapabilitiesForModel(provider, model);
 }
 
-export function createComboCapsResolver(customModels = [], providerConnections = []) {
+export function createComboCapsResolver(customModels = [], providerConnections = [], modelAliases = {}) {
   const overrides = new Map();
   for (const model of customModels) {
     if ((model.kind || model.type || "llm") !== "llm") continue;
@@ -29,10 +30,13 @@ export function createComboCapsResolver(customModels = [], providerConnections =
     .filter((connection) => connection.providerSpecificData?.prefix && !isReservedProviderPrefix(connection.providerSpecificData.prefix))
     .map((connection) => [connection.providerSpecificData.prefix, connection.provider]));
   return (key) => {
-    const slash = key.indexOf("/");
-    const routedProvider = slash === -1 ? null : key.slice(0, slash);
+    // Mirror getModelInfoCore: bare entries may be user model aliases.
+    const aliasTarget = !key.includes("/") ? resolveModelAliasFromMap(key, modelAliases) : null;
+    const effectiveKey = aliasTarget ? `${aliasTarget.provider}/${aliasTarget.model}` : key;
+    const slash = effectiveKey.indexOf("/");
+    const routedProvider = slash === -1 ? null : effectiveKey.slice(0, slash);
     const provider = providersByPrefix.get(routedProvider) || routedProvider;
-    const model = slash === -1 ? key : key.slice(slash + 1);
+    const model = slash === -1 ? effectiveKey : effectiveKey.slice(slash + 1);
     return {
       ...getCapabilitiesForModel(provider ? resolveProviderId(provider) : null, model),
       ...(overrides.get(`${routedProvider}/${model}`) || overrides.get(`${resolveProviderId(provider)}/${model}`) || {}),

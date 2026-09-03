@@ -292,7 +292,7 @@ export async function buildModelsList(kindFilter, options = {}) {
   }
 
   const models = [];
-  const resolveComboCaps = createComboCapsResolver(customModels, connections);
+  const resolveComboCaps = createComboCapsResolver(customModels, connections, modelAliases);
 
   // Combos first (filtered by kind). Web combos expose `kind` so AI knows search vs fetch.
   for (const combo of combos) {

@@ -27,6 +27,16 @@ describe("combo custom-model context overrides", () => {
     expect(getCaps("acme/model-a").contextWindow).toBe(654321);
   });
 
+  it("resolves bare user model aliases before computing caps", () => {
+    const getCaps = createComboCapsResolver(
+      [{ providerAlias: "glm", id: "glm-5.3-flash", type: "llm", caps: { contextWindow: 111111 } }],
+      [],
+      { "my-probe-alias": "glm/glm-5.3-flash" },
+    );
+
+    expect(getCaps("my-probe-alias").contextWindow).toBe(111111);
+  });
+
   it("normalizes registry secondary aliases like the request router", () => {
     const getCaps = createComboCapsResolver([{
       providerAlias: "kimi",
