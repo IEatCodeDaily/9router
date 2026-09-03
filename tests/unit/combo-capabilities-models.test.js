@@ -35,7 +35,7 @@ describe("combo model metadata", () => {
       audioInput: false,
       videoInput: false,
     };
-    mocks.getCombos.mockResolvedValue([{ name: "mixed", kind: null, models: ["p/model"], caps }]);
+    mocks.getCombos.mockResolvedValue([{ name: "mixed", kind: null, models: ["glm/glm-5.3-flash"], caps }]);
 
     const model = (await buildModelsList(["llm"])).find((entry) => entry.id === "mixed");
 
@@ -44,6 +44,27 @@ describe("combo model metadata", () => {
       context_length: 128000,
       capabilities: caps,
     });
+  });
+
+  it("clamps advertised metadata when a model override lowers the safe limit", async () => {
+    mocks.getCustomModels.mockResolvedValue([{
+      providerAlias: "cx",
+      id: "gpt-5.6-sol",
+      type: "llm",
+      caps: { contextWindow: 123456, vision: false },
+    }]);
+    mocks.getCombos.mockResolvedValue([{
+      name: "lowered",
+      kind: null,
+      models: ["codex/gpt-5.6-sol"],
+      caps: { contextWindow: 200000, vision: true },
+    }]);
+
+    const model = (await buildModelsList(["llm"])).find((entry) => entry.id === "lowered");
+
+    expect(model.context_length).toBe(123456);
+    expect(model.capabilities.contextWindow).toBe(123456);
+    expect(model.capabilities.vision).toBe(false);
   });
 
   it("keeps legacy combos backward compatible", async () => {
