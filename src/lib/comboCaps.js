@@ -1,5 +1,5 @@
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
-import { resolveProviderId } from "@/shared/constants/providers";
+import { isReservedProviderPrefix, resolveProviderId } from "@/shared/constants/providers";
 
 export const COMBO_INPUT_CAPABILITIES = ["vision", "pdf", "audioInput", "videoInput"];
 
@@ -26,7 +26,7 @@ export function createComboCapsResolver(customModels = [], providerConnections =
     }
   }
   const providersByPrefix = new Map(providerConnections
-    .filter((connection) => connection.providerSpecificData?.prefix)
+    .filter((connection) => connection.providerSpecificData?.prefix && !isReservedProviderPrefix(connection.providerSpecificData.prefix))
     .map((connection) => [connection.providerSpecificData.prefix, connection.provider]));
   return (key) => {
     const slash = key.indexOf("/");

@@ -100,6 +100,16 @@ export function isCustomEmbeddingProvider(providerId) {
 // All providers (combined)
 export const AI_PROVIDERS = { ...FREE_PROVIDERS, ...FREE_TIER_PROVIDERS, ...OAUTH_PROVIDERS, ...APIKEY_PROVIDERS, ...WEB_COOKIE_PROVIDERS };
 
+const RESERVED_PROVIDER_PREFIXES = new Set(REGISTRY.flatMap((provider) => [
+  provider.id,
+  provider.alias,
+  ...(provider.aliases || []),
+]).filter(Boolean));
+
+export function isReservedProviderPrefix(prefix) {
+  return RESERVED_PROVIDER_PREFIXES.has(prefix);
+}
+
 // Auth methods
 export const AUTH_METHODS = {
   oauth: { id: "oauth" },
