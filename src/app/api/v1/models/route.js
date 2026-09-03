@@ -303,6 +303,12 @@ export async function buildModelsList(kindFilter, options = {}) {
     if (combo.kind === "webSearch" || combo.kind === "webFetch") {
       entry.kind = combo.kind;
     }
+    if (combo.caps && Object.keys(combo.caps).length > 0) {
+      entry.capabilities = combo.caps;
+      if (Number.isSafeInteger(combo.caps.contextWindow) && combo.caps.contextWindow > 0) {
+        entry.context_length = combo.caps.contextWindow;
+      }
+    }
     models.push(entry);
   }
 
