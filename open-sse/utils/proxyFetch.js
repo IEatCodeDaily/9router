@@ -503,6 +503,15 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
   }
   const targetUrl = typeof url === "string" ? url : url.toString();
 
+  // Caller-owned dispatchers can pin validated DNS addresses for SSRF safety.
+  // Never replace that transport via proxy, DNS bypass, TLS or socket retries.
+  if (options.dispatcher) {
+    if (proxyOptions?.strictProxy === true) {
+      throw new Error("[ProxyFetch] Proxy requirement conflicts with caller-pinned transport");
+    }
+    return rawFetch(url, options);
+  }
+
   // Vercel relay: forward request via relay headers
   const vercelRelayUrl = normalizeString(proxyOptions?.vercelRelayUrl);
   if (vercelRelayUrl) {
