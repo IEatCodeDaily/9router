@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCombos, createCombo, getComboByName } from "@/lib/localDb";
+import { validateComboCaps } from "@/lib/comboCaps";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { name, models, kind } = body;
+    const { name, models, kind, caps } = body;
 
     if (!name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -32,13 +33,18 @@ export async function POST(request) {
       return NextResponse.json({ error: "Name can only contain letters, numbers, -, _ and ." }, { status: 400 });
     }
 
+    const capsError = validateComboCaps(caps);
+    if (capsError) {
+      return NextResponse.json({ error: capsError }, { status: 400 });
+    }
+
     // Check if name already exists
     const existing = await getComboByName(name);
     if (existing) {
       return NextResponse.json({ error: "Combo name already exists" }, { status: 400 });
     }
 
-    const combo = await createCombo({ name, models: models || [], kind: kind || null });
+    const combo = await createCombo({ name, models: models || [], kind: kind || null, caps: caps || {} });
 
     return NextResponse.json(combo, { status: 201 });
   } catch (error) {

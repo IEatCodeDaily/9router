@@ -16,11 +16,12 @@ import { updateProviderCredentials, checkAndRefreshToken } from "../services/tok
 import { handleComboChat } from "open-sse/services/combo.js";
 import * as log from "../utils/logger.js";
 import { saveRequestUsage } from "@/lib/usageDb.js";
+import { getUsageAttribution } from "@/lib/usageAttribution.js";
 
 // Providers that don't require credentials (noAuth)
 const NO_AUTH_PROVIDERS = new Set(["sdwebui", "comfyui", "veoaifree-web"]);
 
-function recordImageRequestUsage({ provider, model, connectionId, apiKey, endpoint, usage }) {
+function recordImageRequestUsage({ provider, model, connectionId, apiKey, endpoint, usage, meta }) {
   if (!usage || typeof usage !== "object") return;
   const promptTokens = usage.prompt_tokens;
   const completionTokens = usage.completion_tokens;
@@ -37,6 +38,7 @@ function recordImageRequestUsage({ provider, model, connectionId, apiKey, endpoi
     endpoint: endpoint || null,
     tokens: usage,
     status: "success",
+    meta,
   }).catch(() => {});
 }
 
@@ -53,6 +55,7 @@ export async function handleImageGeneration(request) {
   }
 
   const url = new URL(request.url);
+  const meta = getUsageAttribution({ headers: request.headers, body });
   const preferredConnectionId = request.headers.get("x-connection-id") || null;
   const wantsStream = (request.headers.get("accept") || "").includes("text/event-stream");
   const binaryOutput = url.searchParams.get("response_format") === "binary";
@@ -83,7 +86,7 @@ export async function handleImageGeneration(request) {
     return handleComboChat({
       body,
       models: comboModels,
-      handleSingleModel: (b, m) => handleSingleModelImage(b, m, { wantsStream, binaryOutput, preferredConnectionId, apiKey, endpoint: url.pathname }),
+      handleSingleModel: (b, m) => handleSingleModelImage(b, m, { wantsStream, binaryOutput, preferredConnectionId, apiKey, meta, endpoint: url.pathname }),
       log,
       comboName: modelStr,
       comboStrategy,
@@ -91,10 +94,10 @@ export async function handleImageGeneration(request) {
     });
   }
 
-  return handleSingleModelImage(body, modelStr, { wantsStream, binaryOutput, preferredConnectionId, apiKey, endpoint: url.pathname });
+  return handleSingleModelImage(body, modelStr, { wantsStream, binaryOutput, preferredConnectionId, apiKey, meta, endpoint: url.pathname });
 }
 
-async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutput, preferredConnectionId, apiKey, endpoint } = {}) {
+async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutput, preferredConnectionId, apiKey, endpoint, meta } = {}) {
   const modelInfo = await getModelInfo(modelStr);
   if (!modelInfo.provider) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid model format");
 
@@ -167,6 +170,7 @@ async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutpu
           apiKey,
           endpoint,
           usage,
+          meta,
         });
       },
       onRequestSuccess: async () => {

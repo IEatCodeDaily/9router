@@ -5,14 +5,21 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
-import { Card, Button, Modal, Input, CardSkeleton, ModelSelectModal, ConfirmModal, CapacityBadges, Select, Toggle, Badge, SmartPolicyModal } from "@/shared/components";
+import { Card, Button, Modal, Input, CardSkeleton, ModelSelectModal, ConfirmModal, CapacityBadges, Select, Toggle, Badge, SmartPolicyModal, Tooltip } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
+import { formatContextWindow } from "@/shared/constants/models";
 import { aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
 import { resolveProviderId, AI_PROVIDERS } from "@/shared/constants/providers";
 
 // Validate combo name: only a-z, A-Z, 0-9, -, _
 const VALID_NAME_REGEX = /^[a-zA-Z0-9_.\-]+$/;
+const COMBO_INPUT_CAPS = [
+  { key: "vision", label: "Images" },
+  { key: "pdf", label: "PDF" },
+  { key: "audioInput", label: "Audio" },
+  { key: "videoInput", label: "Video" },
+];
 
 // Capacity adapter: global fallback pools of models per input-modality capability.
 // A request needing a capability the target model/combo lacks switches straight
@@ -595,6 +602,7 @@ export default function CombosPage() {
           onClose={() => setShowCreateModal(false)}
           onSave={handleCreate}
           activeProviders={activeProviders}
+          getCaps={getCaps}
         />
       )}
 
@@ -606,6 +614,7 @@ export default function CombosPage() {
           onClose={() => setEditingCombo(null)}
           onSave={(data) => handleUpdate(editingCombo.id, data)}
           activeProviders={activeProviders}
+          getCaps={getCaps}
         />
       )}
 
@@ -1079,7 +1088,7 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
   );
 }
 
-function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMoveDown, onRemove }) {
+function ModelItem({ id, model, index, isFirst, isLast, onEdit, onMoveUp, onMoveDown, onRemove, getCaps }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useSortable({ id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -1145,6 +1154,16 @@ function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMove
         </div>
       )}
 
+      {/* Advertised context length (from the provider catalog) */}
+      {(() => {
+        const ctx = formatContextWindow(getCaps?.(model)?.contextWindow);
+        return ctx ? (
+          <Tooltip text={`Context window: ${getCaps(model).contextWindow.toLocaleString()} tokens`}>
+            <span className="shrink-0 rounded bg-black/5 px-1 py-0.5 font-mono text-[10px] text-text-muted cursor-help dark:bg-white/5">{ctx}</span>
+          </Tooltip>
+        ) : null;
+      })()}
+
       {/* Priority arrows */}
       <div className="flex shrink-0 items-center gap-0.5">
         <button
@@ -1177,10 +1196,13 @@ function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMove
   );
 }
 
-function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindFilter = null }) {
+function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindFilter = null, getCaps }) {
+  // Catalog caps lookup without a hook — the parent's useModelCaps instance is shared.
+  const getCapsSafe = getCaps || (() => null);
   // Initialize state with combo values - key prop on parent handles reset on remount
   const [name, setName] = useState(combo?.name || "");
   const [models, setModels] = useState(combo?.models || []);
+  const [caps, setCaps] = useState(combo?.caps || {});
   const [showModelSelect, setShowModelSelect] = useState(false);
   const [saving, setSaving] = useState(false);
   const [nameError, setNameError] = useState("");
@@ -1268,10 +1290,22 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
     setModels(newModels);
   };
 
+  const contextWindowValid = caps.contextWindow == null
+    || (Number.isSafeInteger(caps.contextWindow) && caps.contextWindow > 0);
+
   const handleSave = async () => {
-    if (!validateName(name)) return;
+    if (!validateName(name) || !contextWindowValid) return;
     setSaving(true);
-    await onSave({ name: name.trim(), models });
+    await onSave({
+      name: name.trim(),
+      models,
+      caps: {
+        ...(Number.isSafeInteger(caps.contextWindow) && caps.contextWindow > 0
+          ? { contextWindow: caps.contextWindow }
+          : {}),
+        ...Object.fromEntries(COMBO_INPUT_CAPS.map(({ key }) => [key, caps[key] === true])),
+      },
+    });
     setSaving(false);
   };
 
@@ -1297,6 +1331,62 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
             <p className="text-[10px] text-text-muted mt-0.5">
               Only letters, numbers, -, _ and . allowed
             </p>
+          </div>
+
+          {/* Advertised model metadata */}
+          <div className="grid grid-cols-1 gap-3 rounded-lg border border-black/10 p-3 dark:border-white/10 sm:grid-cols-[1fr_2fr]">
+            <div>
+              <label htmlFor="combo-context-window" className="mb-1 block text-sm font-medium">Context Window</label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  id="combo-context-window"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={caps.contextWindow || ""}
+                  aria-invalid={!contextWindowValid}
+                  onChange={(e) => {
+                    const value = e.target.value === "" ? undefined : Number(e.target.value);
+                    setCaps((current) => ({ ...current, contextWindow: value }));
+                  }}
+                  placeholder="e.g. 200000"
+                  className="w-full rounded border border-black/10 bg-white px-2 py-1.5 font-mono text-sm outline-none focus:border-primary dark:border-white/10 dark:bg-black/20"
+                />
+                {(() => {
+                  const max = Math.max(0, ...models.map((m) => getCapsSafe(m)?.contextWindow || 0));
+                  if (!max) return null;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setCaps((current) => ({ ...current, contextWindow: max }))}
+                      title={`Largest context window among the combo's models: ${max.toLocaleString()} tokens`}
+                      className="shrink-0 rounded border border-dashed border-primary/40 px-2 py-1.5 font-mono text-[11px] text-primary hover:border-primary hover:bg-primary/5 transition-colors"
+                    >
+                      Max {formatContextWindow(max)}
+                    </button>
+                  );
+                })()}
+              </div>
+              <p className={`mt-0.5 text-[10px] ${contextWindowValid ? "text-text-muted" : "text-red-500"}`}>
+                {contextWindowValid ? "Tokens advertised by the combo" : "Enter a positive whole number"}
+              </p>
+            </div>
+            <fieldset>
+              <legend className="mb-1 text-sm font-medium">Input Capabilities</legend>
+              <div className="grid grid-cols-2 gap-2">
+                {COMBO_INPUT_CAPS.map(({ key, label }) => (
+                  <label key={key} className="flex cursor-pointer items-center gap-2 text-xs text-text-muted">
+                    <Toggle
+                      checked={caps[key] === true}
+                      onChange={(value) => setCaps((current) => ({ ...current, [key]: value }))}
+                      aria-label={`Accept ${label}`}
+                    />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="mt-1 text-[10px] text-text-muted">Enable only what every fallback model accepts</p>
+            </fieldset>
           </div>
 
           {/* Models */}
@@ -1328,6 +1418,7 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
                       onMoveUp={() => handleMoveUp(index)}
                       onMoveDown={() => handleMoveDown(index)}
                       onRemove={() => handleRemoveModel(index)}
+                      getCaps={getCaps}
                     />
                   ))}
                 </div>
@@ -1354,7 +1445,7 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
               onClick={handleSave}
               fullWidth
               size="sm"
-              disabled={!name.trim() || !!nameError || saving}
+              disabled={!name.trim() || !!nameError || !contextWindowValid || saving}
             >
               {saving ? "Saving..." : isEdit ? "Save" : "Create"}
             </Button>

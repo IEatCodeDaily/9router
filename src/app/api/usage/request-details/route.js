@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getRequestDetails } from "@/lib/usageDb";
+import { getSettings } from "@/lib/localDb";
 
 /**
  * GET /api/usage/request-details
@@ -53,6 +54,13 @@ export async function GET(request) {
     // wholesale lets any dashboard-authenticated user (or, if requireLogin is
     // disabled, anyone) read every user's conversation history. Keep the
     // metadata (model, tokens, latency, status) but drop message content.
+    // Production-only opt-in (never upstream): REQUEST_DETAILS_SHOW_BODIES=1 returns
+    // the stored bodies, but only while dashboard login is enforced - with
+    // requireLogin off the guard lets anyone through, so redaction stays on.
+    if (process.env.REQUEST_DETAILS_SHOW_BODIES === "1" && (await getSettings()).requireLogin !== false) {
+      return NextResponse.json(result);
+    }
+
     const redactedDetails = (result.details || []).map((d) => {
       const redacted = { ...d };
       for (const key of ["request", "providerRequest", "providerResponse", "response"]) {

@@ -65,6 +65,17 @@ function comboSeatCapabilities(seat) {
 // returns { models: [{ id, name? }, ...] } | null on failure.
 // Adding a provider here makes /v1/models prefer the live catalog for it.
 const LIVE_MODEL_RESOLVERS = {
+  anthropic: async (conn) => {
+    if (!conn.apiKey) return null;
+    const res = await fetch("https://api.anthropic.com/v1/models?limit=1000", {
+      headers: { "x-api-key": conn.apiKey, "anthropic-version": "2023-06-01" },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) throw new Error(`anthropic /v1/models ${res.status}`);
+    const data = await res.json();
+    const models = (data.data || []).filter((m) => m?.id).map((m) => ({ id: m.id, name: m.display_name || m.id }));
+    return models.length ? { models } : null;
+  },
   kiro: async (conn) => {
     const result = await resolveKiroModels({
       accessToken: conn.accessToken,
@@ -415,6 +426,12 @@ export async function buildModelsList(kindFilter, options = {}) {
       const { contextWindow, maxOutput } = comboSeatLimits(combo, combosByName);
       if (Number.isFinite(contextWindow)) entry.context_length = contextWindow;
       if (Number.isFinite(maxOutput)) entry.max_completion_tokens = maxOutput;
+    }
+    if (combo.caps && Object.keys(combo.caps).length > 0) {
+      entry.capabilities = combo.caps;
+      if (Number.isSafeInteger(combo.caps.contextWindow) && combo.caps.contextWindow > 0) {
+        entry.context_length = combo.caps.contextWindow;
+      }
     }
     models.push(entry);
   }

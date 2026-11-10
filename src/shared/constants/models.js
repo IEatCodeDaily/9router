@@ -65,3 +65,10 @@ export function isSttTransport(transport) {
   if (typeof transport !== "string") return false;
   return Object.prototype.hasOwnProperty.call(STT_TRANSPORT_META, transport.trim());
 }
+
+// \"272000\" -> \"272k\", 1000000 -> \"1M\"; null when not a positive finite number.
+// ponytail: display rounding only (401500 -> \"402k\") - exact value belongs in a tooltip.
+export function formatContextWindow(n) {
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n >= 1_000_000 ? `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M` : `${Math.round(n / 1000)}k`;
+}

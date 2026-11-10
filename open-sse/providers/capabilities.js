@@ -314,9 +314,9 @@ export const PROVIDER_CAPABILITIES = {
   "codex": {
     "gpt-6-astra":               { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },
     "gpt-6-sol":                 { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },
-    // Without its own entry gpt-6.1-sol fell through to *gpt-6* (1.05M), overstating
-    // the Codex window like any unlisted sibling would.
-    "gpt-6.1-sol":               { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },
+    // Codex /backend-api/codex/models reports context_window 500000 for gpt-6.1-sol.
+    // Its opt-in max_context_window (872000) is not the default or the API's 1.05M.
+    "gpt-6.1-sol":               { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 500000, maxOutput: 128000 },
     // codex-rs/models-manager/models.json: gpt-6.1-terra has context_window 500000 on Codex
     // (the API model is 1.05M; Codex caps the default window like its siblings).
     "gpt-6.1-terra":             { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 500000, maxOutput: 128000 },

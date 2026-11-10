@@ -68,7 +68,16 @@ export async function fetchOidcDiscovery(issuerUrl) {
   if (!res.ok) {
     throw new Error(`Failed to load OIDC discovery document from ${discoveryUrl}`);
   }
-  return await res.json();
+  const discovery = await res.json();
+  if (discovery.issuer !== trimTrailingSlashes(issuerUrl)) {
+    throw new Error("OIDC discovery issuer mismatch");
+  }
+  for (const key of ["authorization_endpoint", "token_endpoint", "jwks_uri"]) {
+    if (new URL(discovery[key]).protocol !== "https:") {
+      throw new Error("OIDC endpoints must use HTTPS");
+    }
+  }
+  return discovery;
 }
 
 export function createPkcePair() {
@@ -220,9 +229,19 @@ export async function verifyOidcIdToken({
   const { payload } = await jwtVerify(idToken, jwks, {
     issuer,
     audience,
-    nonce,
+    requiredClaims: ["sub", "exp", "iat", "nonce"],
   });
+  // jose's jwtVerify validates JWT claims, not OIDC's nonce parameter.
+  if (!nonce || payload.nonce !== nonce) throw new Error("OIDC nonce mismatch");
   return payload;
+}
+
+export function assertOidcDashboardAccess(payload) {
+  // The dashboard has one administrative role; federation must not grant it to everyone.
+  const allowed = (process.env.OIDC_ALLOWED_SUBJECTS || "").split(",").map(s => s.trim()).filter(Boolean);
+  if (typeof payload.sub !== "string" || !allowed.includes(payload.sub)) {
+    throw new Error("oidc_access_denied");
+  }
 }
 
 export function pickOidcDisplayName(payload = {}) {

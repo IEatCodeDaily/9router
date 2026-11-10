@@ -229,6 +229,16 @@ export class DefaultExecutor extends BaseExecutor {
       headers["Anthropic-Beta"] = mergeAnthropicBeta(headers["Anthropic-Beta"], clientBeta);
     }
 
+    // Console API keys reject `claude-code-20250219` with a misleading
+    // "credit balance is too low" 400 -- that flag is subscription-only.
+    if (this.provider === "anthropic") {
+      for (const betaKey of ["anthropic-beta", "Anthropic-Beta"]) {
+        if (!headers[betaKey]) continue;
+        const kept = headers[betaKey].split(",").map((s) => s.trim()).filter((f) => f && f !== "claude-code-20250219").join(",");
+        if (kept) headers[betaKey] = kept; else delete headers[betaKey];
+      }
+    }
+
     // Claude OAuth: align x-claude-code-session-id with metadata.user_id.session_id if missing
     if (this.provider === "claude" && !headers["x-claude-code-session-id"]) {
       const token = credentials?.accessToken || credentials?.apiKey || "";

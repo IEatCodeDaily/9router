@@ -14,6 +14,7 @@ import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { saveRequestUsage } from "@/lib/usageDb.js";
+import { getUsageAttribution } from "@/lib/usageAttribution.js";
 
 function exactEmbeddingUsage(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw) || raw.estimated === true) return null;
@@ -148,6 +149,7 @@ export async function handleEmbeddings(request) {
           connectionId: credentials.connectionId,
           apiKey,
           endpoint: url.pathname,
+          meta: getUsageAttribution({ headers: request.headers, body }),
           tokens: usage,
           status: "success",
         }).catch(() => {});

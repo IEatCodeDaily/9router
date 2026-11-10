@@ -93,6 +93,7 @@ describe("Codex image usage persistence", () => {
       connectionId: "connection-a",
       apiKey: "client-key",
       endpoint: "/v1/images/generations",
+      meta: { sessionId: null, clientUser: null, client: null },
       tokens: {
         prompt_tokens: 321,
         completion_tokens: 654,

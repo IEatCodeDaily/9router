@@ -53,6 +53,12 @@ export const SEARXNG_URL = envUrl("SEARXNG_URL", "http://localhost:8888/search")
 export const STREAM_STALL_TIMEOUT_MS = envMs("STREAM_STALL_TIMEOUT_MS", 360 * 1000);
 
 // Time-to-first-token timeout (prompt prefill). Env: STREAM_FIRST_CHUNK_TIMEOUT_MS.
+// Downstream SSE keepalive: when nothing has been written to the client for this long,
+// emit an SSE comment. Upstream pings (Claude thinking) are dropped by translation, and
+// proxies such as Cloudflare cut a response that stays byte-silent (~100s), leaving the
+// client hung forever. Comments are ignored by every SSE parser. Env: SSE_KEEPALIVE_MS.
+export const SSE_KEEPALIVE_MS = envMs("SSE_KEEPALIVE_MS", 20 * 1000);
+
 export const STREAM_FIRST_CHUNK_TIMEOUT_MS = envMs("STREAM_FIRST_CHUNK_TIMEOUT_MS", 200 * 1000);
 
 // Combo empty-content failover: how long a 2xx stream may be held while waiting for its first
