@@ -44,6 +44,7 @@ export async function getClaudeUsage(accessToken, proxyOptions = null, options =
     const result = await fetchClaudeUsageRaw(accessToken, proxyOptions);
     // Only cache real quota data, not soft-failure {message: ...} payloads
     if (accessToken && result?.quotas) {
+      result.observedAt = new Date().toISOString();
       usageCache.set(accessToken, {
         result,
         expiresAt: Date.now() + USAGE_CACHE_TTL_MS,
@@ -179,6 +180,17 @@ export function parseClaudeResetGrants(block) {
       useRequiresLimit: g.use_requires_limit !== false,
     })),
   };
+}
+
+// Claude OAuth connections often lack an email; the hub needs one to name and dedupe accounts.
+export async function getClaudeAccountEmail(accessToken, proxyOptions = null) {
+  const res = await proxyAwareFetch(CLAUDE_CONFIG.profileUrl, { method: "GET", headers: {
+    "Authorization": `Bearer ${accessToken}`,
+    "anthropic-beta": "oauth-2025-04-20",
+    "anthropic-version": CLAUDE_CONFIG.apiVersion,
+  } }, proxyOptions);
+  const email = (await res.json().catch(() => null))?.account?.email;
+  return res.ok && typeof email === "string" && email.includes("@") ? email : null;
 }
 
 // Spend one reset grant: refills the limits listed in grant.clears. Irreversible.

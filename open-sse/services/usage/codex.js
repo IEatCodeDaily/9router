@@ -47,6 +47,7 @@ function formatCodexWindow(window) {
     remaining: Math.max(0, 100 - used),
     resetAt: parseResetTime(window?.reset_at ?? window?.resets_at ?? window?.resetAt ?? null),
     unlimited: false,
+    ...(Number.isFinite(window?.limit_window_seconds) ? { windowSeconds: window.limit_window_seconds } : {}),
   };
 }
 

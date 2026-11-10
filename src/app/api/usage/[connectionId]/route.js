@@ -8,6 +8,8 @@ import { getExecutor } from "open-sse/executors/index.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { USAGE_APIKEY_PROVIDERS } from "@/shared/constants/providers";
 import { isLeaseConnection } from "open-sse/services/minimaxCodeLease.js";
+import { saveQuotaSnapshot } from "@/lib/db/repos/usageInsightsRepo.js";
+import { getClaudeAccountEmail } from "open-sse/services/usage/claude.js";
 
 // Detect auth-expired messages returned by usage providers instead of throwing
 const AUTH_EXPIRED_PATTERNS = ["expired", "authentication", "unauthorized", "401", "re-authorize"];
@@ -197,7 +199,18 @@ export async function GET(request, { params }) {
       }
     }
 
-    return Response.json(usage);
+    let recordedAt = null;
+    let historyError = false;
+    // One-time backfill: T3 names/dedupes hub accounts by email; never overwrite an existing one.
+    if (isOAuth && connection.provider === "claude" && !connection.email && connection.accessToken) {
+      try {
+        const email = await getClaudeAccountEmail(connection.accessToken, proxyOptions);
+        if (email) connection = await updateProviderConnection(connection.id, { email }) || connection;
+      } catch (error) { console.warn("[Usage] claude: email lookup failed:", error.message); }
+    }
+    try { recordedAt = await saveQuotaSnapshot(connection, usage) || null; }
+    catch (error) { historyError = true; console.error("[Usage history] Save failed:", error.message); }
+    return Response.json({ ...usage, recordedAt, historyError });
   } catch (error) {
     const provider = connection?.provider ?? "unknown";
     console.warn(`[Usage] ${provider}: ${error.message}`);

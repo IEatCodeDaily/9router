@@ -15,6 +15,7 @@ import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import * as log from "../utils/logger.js";
 import { checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { saveRequestUsage } from "@/lib/usageDb.js";
+import { getUsageAttribution } from "@/lib/usageAttribution.js";
 
 /**
  * Handle System One (Jev) decision requests for the Next.js server.
@@ -150,6 +151,7 @@ export async function handleSystemone(request) {
           connectionId: credentials.connectionId,
           apiKey,
           endpoint: url.pathname,
+          meta: getUsageAttribution({ headers: request.headers, body }),
           tokens: {
             ...result.usage,
             total_tokens: result.usage.prompt_tokens + result.usage.completion_tokens,

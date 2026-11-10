@@ -1,4 +1,5 @@
 import { Readable } from "stream";
+import { AsyncLocalStorage } from "node:async_hooks";
 import {
   MEMORY_CONFIG,
   FRESH_RETRY_KEEPALIVE_TIMEOUT_MS,
@@ -8,6 +9,13 @@ import {
   resolveKeepAliveTimeouts,
   isFreshSocketReplayEnabled,
 } from "../config/runtimeConfig.js";
+
+const fetchSignalContext = new AsyncLocalStorage();
+
+// Scope a polling deadline across credential refresh and nested provider calls.
+export function withFetchSignal(signal, callback) {
+  return fetchSignalContext.run(signal, callback);
+}
 import { dbg } from "./debugLog.js";
 import { ensureClaudeCliVersion, applyClaudeCliVersion } from "./claudeCliVersion.js";
 
@@ -426,6 +434,12 @@ async function createBypassRequest(parsedUrl, realIP, options) {
 
   return new Promise((resolve, reject) => {
     const socket = new net.Socket();
+    const abort = () => socket.destroy(options.signal.reason || new Error("Aborted"));
+    if (options.signal) {
+      if (options.signal.aborted) { reject(options.signal.reason); return; }
+      options.signal.addEventListener("abort", abort, { once: true });
+      socket.once("close", () => options.signal.removeEventListener("abort", abort));
+    }
 
     socket.connect(HTTPS_PORT, realIP, () => {
       const reqOptions = {
@@ -439,6 +453,7 @@ async function createBypassRequest(parsedUrl, realIP, options) {
         servername: parsedUrl.hostname,
         path: parsedUrl.pathname + parsedUrl.search,
         method: options.method || "POST",
+        signal: options.signal,
         headers: {
           ...options.headers,
           Host: parsedUrl.hostname,
@@ -474,6 +489,11 @@ async function createBypassRequest(parsedUrl, realIP, options) {
 }
 
 export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
+  const scopedSignal = fetchSignalContext.getStore();
+  if (scopedSignal) {
+    options = { ...options, signal: options.signal ? AbortSignal.any([options.signal, scopedSignal]) : scopedSignal };
+    options.signal.throwIfAborted();
+  }
   // Keep the spoofed Claude Code version current (new models require a minimum CLI version).
   // Refresh in the background: the request uses the version already known, so an
   // unreachable npm registry can never add latency to the chat path.

@@ -245,6 +245,11 @@ export async function saveRequestUsage(entry) {
     const db = await getAdapter();
 
     if (!entry.timestamp) entry.timestamp = new Date().toISOString();
+    const owner = entry.apiKey ? db.get("SELECT id, name FROM apiKeys WHERE key = ? AND isActive = 1", [entry.apiKey]) : null;
+    // Snapshot authenticated owner identity, never trust client-supplied owner fields.
+    const { sessionId, clientUser, client } = entry.meta || {};
+    entry.meta = { sessionId: sessionId || null, clientUser: clientUser || null, client: client || null,
+      ...(owner ? { ownerId: owner.id, ownerName: owner.name || owner.id } : {}) };
     entry.cost = await calculateCost(entry.provider, entry.model, entry.tokens);
 
     const tokens = entry.tokens || {};
@@ -265,11 +270,12 @@ export async function saveRequestUsage(entry) {
            AND COALESCE(apiKey, '') = COALESCE(?, '')
            AND promptTokens = ?
            AND completionTokens = ?
+           AND COALESCE(json_extract(meta, '$.sessionId'), '') = ?
          ORDER BY id DESC LIMIT 1`,
         [
           entry.timestamp, entry.provider || null, entry.model || null,
           entry.connectionId || null, entry.apiKey || null,
-          promptTokens, completionTokens,
+          promptTokens, completionTokens, entry.meta?.sessionId || "",
         ]
       );
 
@@ -286,7 +292,7 @@ export async function saveRequestUsage(entry) {
           entry.timestamp, entry.provider || null, entry.model || null,
           entry.connectionId || null, entry.apiKey || null, entry.endpoint || null,
           promptTokens, completionTokens, entry.cost || 0, entry.status || "ok",
-          stringifyJson(tokens), stringifyJson({}),
+          stringifyJson(tokens), stringifyJson(entry.meta || {}),
         ]
       );
 

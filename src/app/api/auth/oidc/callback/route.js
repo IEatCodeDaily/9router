@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import {
+  assertOidcDashboardAccess,
   exchangeOidcCode,
   fetchOidcDiscovery,
   getOidcRuntimeConfig,
@@ -71,6 +72,7 @@ export async function GET(request) {
       nonce: storedNonce,
     });
 
+    assertOidcDashboardAccess(payload);
     clearOidcCookies(cookieStore);
     await setDashboardAuthCookie(cookieStore, request, {
       oidc: true,
