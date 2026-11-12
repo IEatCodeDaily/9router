@@ -34,6 +34,19 @@ async function peekComboResponse(result, log) {
 // stripped). Must be prioritized. Soft (e.g. search) only degrades a feature.
 const HARD_CAPS = new Set(["vision", "pdf", "audioInput", "videoInput"]);
 
+// A combo member's declared reset as epoch ms: body `retryAfter` (ISO) or the
+// Retry-After header (seconds or HTTP-date). null = no reset declared.
+function memberResetMs(bodyRetryAfter, header) {
+  const now = Date.now();
+  const fromBody = bodyRetryAfter ? new Date(bodyRetryAfter).getTime() : NaN;
+  if (fromBody > now) return fromBody;
+  if (!header) return null;
+  const sec = Number(header);
+  if (Number.isFinite(sec)) return sec > 0 ? now + sec * 1000 : null;
+  const at = Date.parse(header);
+  return at > now ? at : null;
+}
+
 // Prefixes used when flattening tool turns into plain prose for panel models.
 const TOOL_CALL_PREFIX = "[Called tools: ";
 const TOOL_RESULT_PREFIX = "[Tool result: ";
@@ -465,6 +478,9 @@ export async function handleComboChat({
   
   let lastError = null;
   let earliestRetryAfter = null;
+  let soonestError = null;
+  let unknownReset = null;
+  let declaredResets = 0;
   let lastStatus = null;
   let requestScopedResult = null;
 
@@ -565,14 +581,22 @@ export async function handleComboChat({
         // Ignore JSON parse errors
       }
 
-      // Track earliest retryAfter across all combo models
-      if (retryAfter && (!earliestRetryAfter || new Date(retryAfter) < new Date(earliestRetryAfter))) {
-        earliestRetryAfter = retryAfter;
-      }
-
       // Normalize error text to string (Worker-safe)
       if (typeof errorText !== "string") {
         try { errorText = JSON.stringify(errorText); } catch { errorText = String(errorText); }
+      }
+
+      // Track the soonest declared reset across members (body retryAfter or Retry-After
+      // header). A member that declares none is short/unknown and must not be outvoted
+      // by a long reset on another member.
+      const resetMs = memberResetMs(retryAfter, result.headers?.get?.("retry-after"));
+      if (resetMs === null) unknownReset = errorText || String(result.status);
+      else {
+        declaredResets++;
+        if (!earliestRetryAfter || resetMs < new Date(earliestRetryAfter).getTime()) {
+          earliestRetryAfter = new Date(resetMs).toISOString();
+          soonestError = errorText || String(result.status);
+        }
       }
 
       // Check if should fallback to next model
@@ -639,15 +663,17 @@ export async function handleComboChat({
   // or have no active credentials. 503 is more accurate and retryable by clients.
   const allDisabled = lastError && lastError.toLowerCase().includes("no credentials");
   const status = allDisabled ? 503 : (lastStatus || 503);
-  const msg = lastError || "All combo models unavailable";
-
-  if (earliestRetryAfter) {
+  // The alias is usable again as soon as ANY member recovers: surface the soonest reset,
+  // or, if any member failed without declaring one (short/unknown), no reset at all.
+  if (earliestRetryAfter && declaredResets === rotatedModels.length) {
+    const msg = soonestError.replace(/ \(reset after [^)]*\)$/, "");
     const retryHuman = formatRetryAfter(earliestRetryAfter);
-    log.warn("COMBO", `All models failed | ${msg} (${retryHuman})`);
+    log.warn("COMBO", `All models failed | soonest: ${msg} (${retryHuman}) | last: ${lastError}`);
     return unavailableResponse(status, msg, earliestRetryAfter, retryHuman);
   }
 
-  log.warn("COMBO", `All models failed | ${msg}`);
+  const msg = (unknownReset || lastError || "All combo models unavailable").replace(/ \(reset after [^)]*\)$/, "");
+  log.warn("COMBO", `All models failed | ${msg} | last: ${lastError}`);
   return new Response(
     JSON.stringify({ error: { message: msg } }),
     { status, headers: { "Content-Type": "application/json" } }
