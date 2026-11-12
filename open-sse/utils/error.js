@@ -159,13 +159,15 @@ export function createErrorResult(statusCode, message, resetsAtMs, extraHeaders 
  * @param {string} message - Error message (without retry info)
  * @param {string} retryAfter - ISO timestamp when earliest account becomes available
  * @param {string} retryAfterHuman - Human-readable retry info e.g. "reset after 30s"
- * @returns {Response}
+ * @param {string} scope - What is exhausted: "model" | "combo" | "account"
+ * @returns {Response} body.error carries machine-readable `code`, `reset_at` (ISO), `scope`
  */
-export function unavailableResponse(statusCode, message, retryAfter, retryAfterHuman, extraHeaders = null) {
+export function unavailableResponse(statusCode, message, retryAfter, retryAfterHuman, extraHeaders = null, scope = "account") {
   const retryAfterSec = Math.max(Math.ceil((new Date(retryAfter).getTime() - Date.now()) / 1000), 1);
   const msg = `${message} (${retryAfterHuman})`;
+  const code = statusCode === 429 ? "quota_exhausted" : "unavailable";
   return new Response(
-    JSON.stringify({ error: { message: msg } }),
+    JSON.stringify({ error: { message: msg, code, reset_at: new Date(retryAfter).toISOString(), scope } }),
     {
       status: statusCode,
       headers: {
