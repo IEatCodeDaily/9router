@@ -481,6 +481,7 @@ export async function handleComboChat({
   let soonestError = null;
   let unknownReset = null;
   let declaredResets = 0;
+  let quotaResets = 0;
   let lastStatus = null;
   let requestScopedResult = null;
 
@@ -593,6 +594,7 @@ export async function handleComboChat({
       if (resetMs === null) unknownReset = errorText || String(result.status);
       else {
         declaredResets++;
+        if (result.status === 429) quotaResets++;
         if (!earliestRetryAfter || resetMs < new Date(earliestRetryAfter).getTime()) {
           earliestRetryAfter = new Date(resetMs).toISOString();
           soonestError = errorText || String(result.status);
@@ -669,7 +671,8 @@ export async function handleComboChat({
     const msg = soonestError.replace(/ \(reset after [^)]*\)$/, "");
     const retryHuman = formatRetryAfter(earliestRetryAfter);
     log.warn("COMBO", `All models failed | soonest: ${msg} (${retryHuman}) | last: ${lastError}`);
-    return unavailableResponse(status, msg, earliestRetryAfter, retryHuman);
+    // Every member is quota-limited → 429 quota_exhausted, reset_at = soonest member reset.
+    return unavailableResponse(quotaResets === declaredResets ? 429 : status, msg, earliestRetryAfter, retryHuman, null, "combo");
   }
 
   const msg = (unknownReset || lastError || "All combo models unavailable").replace(/ \(reset after [^)]*\)$/, "");

@@ -33,6 +33,9 @@ describe("combo all-failed reset", () => {
     expect(sec).toBeGreaterThan(200);
     expect(sec).toBeLessThanOrEqual(268);
     expect(body.error.message).toMatch(/^cc rate limited \(reset after 4m/);
+    expect(res.status).toBe(429);
+    expect(body.error).toMatchObject({ code: "quota_exhausted", scope: "combo" });
+    expect(Math.abs(Date.parse(body.error.reset_at) - Date.now() - 267_000)).toBeLessThan(5_000);
   });
 
   it("emits no long reset when a member declared none", async () => {
