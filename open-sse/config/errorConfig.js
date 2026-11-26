@@ -69,6 +69,15 @@ export const ERROR_RULES = [
   { text: "request not allowed",      cooldownMs: COOLDOWN.short },
   { text: "improperly formed request", cooldownMs: COOLDOWN.long },
 
+  // Oversized input is the REQUEST's fault, not the credential's. llama.cpp-style
+  // embedding backends report it as a 500 ("input (3223 tokens) is too large to
+  // process", "exceed_context_size_error", "larger than the max context size"),
+  // which would otherwise take the transient 30s lock and fail every later
+  // request on a single-connection provider. Pass the error to the client.
+  { text: "too large to process",           requestScoped: true },
+  { text: "exceed_context_size",            requestScoped: true },
+  { text: "larger than the max context size", requestScoped: true },
+
   // Terminal billing/credit states. These arrive as 429 from some providers
   // (Z.AI/GLM code 1113 is a Chinese-language "insufficient balance" body), so
   // without an explicit rule they fall through to the generic 429 backoff and
