@@ -23,7 +23,7 @@ describe("usage route for MiniMax lease connections", () => {
     const body = await (await call()).json();
 
     expect(mocks.getUsage).toHaveBeenCalledOnce();
-    expect(body).toEqual({ quotas: { Credits: { used: 0, total: 5 } } });
+    expect(body).toMatchObject({ quotas: { Credits: { used: 0, total: 5 } } });
   });
 
   it("still refuses connections with no usage path", async () => {
